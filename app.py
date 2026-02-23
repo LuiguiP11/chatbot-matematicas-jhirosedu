@@ -1,8 +1,8 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_from_directory
 import requests
 import os
 
-app = Flask(__name__)
+app = Flask(__name__, static_folder='.', static_url_path='') # Sirve archivos estáticos desde la raíz
 
 # Lee la API Key de GROQ desde una variable de entorno
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
@@ -47,6 +47,16 @@ REGLAS ESTRICTAS:
 4. Mantén respuestas concisas (máximo 3-4 párrafos o pasos).
 5. Sé respetuoso y positivo en todo momento.
 """
+
+# Ruta para servir el index.html principal
+@app.route("/")
+def serve_index():
+    return send_from_directory('.', 'index.html')
+
+# Ruta para servir archivos estáticos (CSS, JS, imágenes)
+@app.route("/assets/<path:path>")
+def serve_assets(path):
+    return send_from_directory('assets', path)
 
 @app.route("/chat", methods=["POST"])
 def chat():
@@ -95,5 +105,12 @@ def chat():
         app.logger.error(f"Error inesperado en el backend: {e}")
         return jsonify({"error": f"Error inesperado: {e}"}), 500
 
-if __name__ == "__main__":
-    app.run(debug=True, port=8000)
+# Esta parte es específica para Hugging Face Spaces
+# Hugging Face Spaces usa el puerto 7860 para Gradio/Streamlit por defecto
+# Para Flask, el puerto suele ser 5000, pero HF Spaces se encarga de la redirección
+# Lo importante es que el __name__ == "__main__" no se ejecute en el entorno de HF Spaces
+# ya que HF Spaces tiene su propio método de ejecución (gunicorn, uwsgi, etc.)
+
+# Por lo tanto, no necesitamos el if __name__ == "__main__": app.run(...)
+# en un entorno de Hugging Face Spaces con sdk:python o sdk:gradio
+# La plataforma se encargará de ejecutar la aplicación Flask.
