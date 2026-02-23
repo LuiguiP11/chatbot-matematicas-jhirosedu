@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Taby Tutora de Matemática - Instituto Experimental</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary:    #32CD32;
+            --secondary:  #00BFFF;
+            --bg-light:   #f0f8ff;
+            --bg-chat:    #e4f0f8;
+            --bubble-user:#d4edbe;
+            --bubble-bot: #c6dff0;
+            --text:       #2a2a2a;
+            --white:      #ffffff;
+            --shadow:     0 4px 20px rgba(0,0,0,.12);
+        }
+
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: 'Poppins', sans-serif;
+            background: linear-gradient(135deg, #e0f7fa 0%, #e8f5e9 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: var(--text);
+        }
+
+        /* ── Container ── */
+        .chat-container {
+            width: min(480px, 100vw);
+            height: min(820px, 100vh);
+            background: var(--white);
+            border-radius: 20px;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            box-shadow: var(--shadow), 0 0 0 1px rgba(0,0,0,.06);
+        }
+
+        @media (max-width: 500px) {
+            .chat-container { border-radius: 0; }
+        }
+
+        /* ── Header ── */
+        header {
+            background: linear-gradient(90deg, var(--primary), var(--secondary));
+            color: var(--white);
+            padding: 14px 18px;
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            flex-shrink: 0;
+        }
+
+        .bot-avatar {
+            width: 50px; height: 50px;
+            border-radius: 50%;
+            border: 2px solid rgba(255,255,255,.6);
+            overflow: hidden;
+            flex-shrink: 0;
+            background: rgba(255,255,255,.2);
+        }
+        .bot-avatar img { width: 100%; height: 100%; object-fit: cover; }
+
+        .header-info h1 { font-size: 1.1rem; font-weight: 700; line-height: 1.2; }
+        .header-info p  { font-size: .72rem; opacity: .85; }
+
+        /* ── Chat area ── */
+        .chat-box {
+            flex: 1;
+            overflow-y: auto;
+            padding: 18px 16px;
+            background: var(--bg-chat);
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            scroll-behavior: smooth;
+        }
+
+        /* Scrollbar sutil */
+        .chat-box::-webkit-scrollbar { width: 5px; }
+        .chat-box::-webkit-scrollbar-thumb { background: rgba(0,0,0,.15); border-radius: 10px; }
+
+        /* ── Bubbles ── */
+        .message { display: flex; max-width: 82%; }
+        .message.user { align-self: flex-end; }
+        .message.bot  { align-self: flex-start; }
+
+        .bubble {
+            padding: 11px 16px;
+            border-radius: 18px;
+            line-height: 1.55;
+            font-size: .92rem;
+            box-shadow: 0 1px 4px rgba(0,0,0,.08);
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+
+        .message.user .bubble {
+            background: var(--bubble-user);
+            border-bottom-right-radius: 4px;
+        }
+        .message.bot .bubble {
+            background: var(--bubble-bot);
+            border-bottom-left-radius: 4px;
+        }
+
+        /* Typing dots */
+        .typing-dots {
+            display: inline-flex;
+            gap: 4px;
+            align-items: center;
+            padding: 4px 2px;
+        }
+        .typing-dots span {
+            width: 7px; height: 7px;
+            background: #6aaac8;
+            border-radius: 50%;
+            animation: bounce .9s infinite ease-in-out;
+        }
+        .typing-dots span:nth-child(2) { animation-delay: .15s; }
+        .typing-dots span:nth-child(3) { animation-delay: .30s; }
+
+        @keyframes bounce {
+            0%, 80%, 100% { transform: translateY(0); }
+            40%            { transform: translateY(-6px); }
+        }
+
+        /* ── Input ── */
+        .input-area {
+            display: flex;
+            gap: 10px;
+            padding: 12px 16px;
+            background: var(--white);
+            border-top: 1px solid #e0e0e0;
+            flex-shrink: 0;
+        }
+
+        #user-input {
+            flex: 1;
+            border: 1.5px solid #d0e8f0;
+            border-radius: 24px;
+            padding: 10px 16px;
+            font-family: inherit;
+            font-size: .93rem;
+            outline: none;
+            transition: border-color .25s;
+            resize: none;
+            max-height: 120px;
+        }
+        #user-input:focus { border-color: var(--primary); }
+
+        #send-button {
+            background: linear-gradient(135deg, var(--primary), #28a428);
+            color: var(--white);
+            border: none;
+            border-radius: 24px;
+            padding: 10px 20px;
+            font-family: inherit;
+            font-size: .93rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: opacity .2s, transform .1s;
+            flex-shrink: 0;
+        }
+        #send-button:hover:not(:disabled)  { opacity: .88; }
+        #send-button:active:not(:disabled) { transform: scale(.96); }
+        #send-button:disabled { opacity: .5; cursor: not-allowed; }
+
+        /* ── Footer ── */
+        footer {
+            background: linear-gradient(90deg, var(--primary), var(--secondary));
+            color: var(--white);
+            text-align: center;
+            padding: 8px;
+            font-size: .68rem;
+            flex-shrink: 0;
+        }
+
+        /* ── Error banner ── */
+        .error-msg { color: #b00020; font-size: .85rem; font-style: italic; }
+    </style>
+</head>
+<body>
+
+<div class="chat-container">
+
+    <header>
+        <div class="bot-avatar">
+            <img src="./assets/img/brazos_abiertos.png" alt="Taby Tutora">
+        </div>
+        <div class="header-info">
+            <h1>Taby Tutora de Matemática</h1>
+            <p>Instituto Experimental de Educación Básica</p>
+        </div>
+    </header>
+
+    <div class="chat-box" id="chat-box">
+        <div class="message bot">
+            <div class="bubble">
+                ¡Hola! Soy Taby Tutora de Matemática 👋, tu asistente del Instituto Experimental. Estoy aquí para ayudarte con matemáticas de 1º, 2º y 3º básico. ¿Cómo puedo ayudarte hoy?
+            </div>
+        </div>
+    </div>
+
+    <div class="input-area">
+        <textarea
+            id="user-input"
+            placeholder="Escribe tu pregunta de matemáticas..."
+            maxlength="800"
+            rows="1"
+            aria-label="Escribe tu mensaje"
+        ></textarea>
+        <button id="send-button" aria-label="Enviar mensaje">Enviar</button>
+    </div>
+
+    <footer>© 2026 Jhiro's Edu | Todos los derechos reservados</footer>
+
+</div>
+
+<script>
+(function () {
+    "use strict";
+
+    /* ──────────────────────────────────────────────
+       CONFIGURACIÓN
+       ⚠️  IMPORTANTE: En producción mueve la API Key
+       a un backend propio y nunca la expongas aquí.
+    ────────────────────────────────────────────── */
+    // La API_KEY de GROQ ahora se manejará en el backend.
+    // El frontend se comunicará con el backend en el mismo dominio, en la ruta /chat.
+    const API_URL = "/chat"; 
+    // const MODEL   = "llama-3.3-70b-versatile"; // El modelo se define en el backend.
+
+    const MAX_HISTORY = 20; // mensajes en memoria (evita tokens infinitos)
+
+    /* ── System prompt / CNB ── */
+    const SYSTEM_PROMPT = `
+Eres "Taby Tutora de Matemática", un asistente educativo amigable, paciente y motivador para estudiantes de 1º, 2º y 3º básico del Instituto Experimental de Educación Básica con Orientación Ocupacional (Guatemala).
+
+TEMAS QUE PUEDES RESPONDER según el CNB de Guatemala:
+
+1º Básico:
+• Números Naturales y Enteros (operaciones y propiedades).
+• Fracciones y Decimales.
+• Razones, Proporciones y Porcentajes.
+• Álgebra introductoria (expresiones y ecuaciones de primer grado).
+• Geometría (figuras planas, perímetro y área).
+• Estadística descriptiva (tablas, gráficas, medidas de tendencia central).
+
+2º Básico:
+• Números Reales (racionales e irracionales).
+• Álgebra (productos notables, factorización, ecuaciones lineales y cuadráticas).
+• Geometría (triángulos, polígonos, cuerpos geométricos, teorema de Pitágoras).
+• Funciones lineales y cuadráticas.
+• Estadística y Probabilidad.
+
+3º Básico:
+• Números Complejos.
+• Álgebra avanzada (ecuaciones, desigualdades, sistemas de ecuaciones).
+• Funciones (lineales, cuadráticas, exponenciales, logarítmicas).
+• Trigonometría (razones y funciones trigonométricas).
+• Geometría analítica.
+• Estadística inferencial.
+
+REGLAS ESTRICTAS:
+1. Solo respondes preguntas de los temas matemáticos del CNB listados arriba. Si el tema no corresponde, informa amablemente que solo puedes ayudar con matemáticas de 1º a 3º básico.
+2. NUNCA des respuestas directas a tareas, ejercicios o exámenes. Guía al estudiante paso a paso con preguntas que le ayuden a descubrir la respuesta por sí mismo.
+3. Usa lenguaje sencillo, ejemplos cotidianos (si es posible con contexto guatemalteco) y un tono alentador.
+4. Mantén respuestas concisas (máximo 3-4 párrafos o pasos).
+5. Sé respetuoso y positivo en todo momento.
+`;
+
+    /* ── Estado ── */
+    const history = []; // {role, parts:[{text}]}
+
+    /* ── DOM ── */
+    const chatBox    = document.getElementById("chat-box");
+    const inputEl    = document.getElementById("user-input");
+    const sendBtn    = document.getElementById("send-button");
+
+    /* ── Helpers de seguridad ── */
+    // Escapa HTML para evitar XSS
+    function escapeHTML(str) {
+        return str
+            .replace(/&/g,  "&amp;")
+            .replace(/</g,  "&lt;")
+            .replace(/>/g,  "&gt;")
+            .replace(/"/g,  "&quot;")
+            .replace(/'/g,  "&#39;");
+    }
+
+    // Convierte saltos de línea en <br> después de escapar
+    function safeText(str) {
+        return escapeHTML(str).replace(/\n/g, "<br>");
+    }
+
+    /* ── UI helpers ── */
+    function addBubble(text, sender, isError = false) {
+        const wrap = document.createElement("div");
+        wrap.className = `message ${sender}`;
+
+        const bubble = document.createElement("div");
+        bubble.className = "bubble" + (isError ? " error-msg" : "");
+        bubble.innerHTML = safeText(text);
+
+        wrap.appendChild(bubble);
+        chatBox.appendChild(wrap);
+        chatBox.scrollTop = chatBox.scrollHeight;
+        return bubble;
+    }
+
+    function showTyping() {
+        const wrap = document.createElement("div");
+        wrap.className = "message bot";
+        wrap.id = "typing-indicator";
+
+        const bubble = document.createElement("div");
+        bubble.className = "bubble";
+        bubble.innerHTML = `<div class="typing-dots">
+            <span></span><span></span><span></span>
+        </div>`;
+
+        wrap.appendChild(bubble);
+        chatBox.appendChild(wrap);
+        chatBox.scrollTop = chatBox.scrollHeight;
+    }
+
+    function removeTyping() {
+        const el = document.getElementById("typing-indicator");
+        if (el) el.remove();
+    }
+
+    function setLoading(isLoading) {
+        sendBtn.disabled  = isLoading;
+        inputEl.disabled  = isLoading;
+    }
+
+    /* ── Auto-resize textarea ── */
+    inputEl.addEventListener("input", () => {
+        inputEl.style.height = "auto";
+        inputEl.style.height = Math.min(inputEl.scrollHeight, 120) + "px";
+    });
+
+    /* ── Envío de mensaje ── */
+    async function sendMessage() {
+        const text = inputEl.value.trim();
+        if (!text) return;
+
+        // Muestra burbuja del usuario
+        addBubble(text, "user");
+        inputEl.value = "";
+        inputEl.style.height = "auto";
+
+        // Agrega al historial
+        history.push({ role: "user", content: text });
+
+        // Recorta historial para no exceder tokens
+        if (history.length > MAX_HISTORY) {
+            history.splice(0, history.length - MAX_HISTORY);
+        }
+
+        setLoading(true);
+        showTyping();
+
+        try {
+            const payload = {
+                // MODEL se definirá en el backend
+                messages: [
+                    { role: "system", content: SYSTEM_PROMPT },
+                    ...history
+                ],
+                max_tokens: 512,
+                temperature: 0.7,
+                top_p: 0.9
+            };
+
+            const res = await fetch(API_URL, {
+                method:  "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                    // La autorización con API_KEY ahora se maneja en el backend
+                },
+                body: JSON.stringify(payload)
+            });
+
+            if (!res.ok) {
+                const errData = await res.json().catch(() => ({}));
+                throw new Error(errData?.error?.message || `HTTP ${res.status}`);
+            }
+
+            const data = await res.json();
+
+            // La respuesta del backend proxy tendrá un formato diferente, espera { response: "..." }
+            const botText = data?.response;
+            if (!botText) throw new Error("Respuesta vacía del modelo.");
+
+            // Agrega respuesta al historial
+            history.push({ role: "assistant", content: botText });
+
+            removeTyping();
+            addBubble(botText, "bot");
+
+        } catch (err) {
+            console.error("[Taby Error]", err);
+            removeTyping();
+            addBubble(
+                "Lo siento, ocurrió un error al procesar tu pregunta. Por favor intenta de nuevo. 🙏\n(" + err.message + ")",
+                "bot",
+                true
+            );
+        } finally {
+            setLoading(false);
+            inputEl.focus();
+        }
+    }
+
+    /* ── Eventos ── */
+    sendBtn.addEventListener("click", sendMessage);
+    inputEl.addEventListener("keydown", (e) => {
+        // Enter envía; Shift+Enter hace salto de línea
+        if (e.key === "Enter" && !e.shiftKey) {
+            e.preventDefault();
+            sendMessage();
+        }
+    });
+
+})();
+</script>
+
+</body>
+</html>
