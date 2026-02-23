@@ -1,8 +1,14 @@
 from flask import Flask, request, jsonify, send_from_directory
 import requests
 import os
+import gradio as gr # ¡Nueva importación!
 
-app = Flask(__name__, static_folder='.', static_url_path='') # Sirve archivos estáticos desde la raíz
+# Ajusta el static_folder y static_url_path para que Flask sirva los archivos correctamente
+# dentro del entorno de Hugging Face Space si es necesario.
+# Por defecto, Hugging Face Spaces sirve los archivos estáticos desde la raíz
+# cuando el sdk es 'gradio' y 'output_dir' es '.'
+
+app = Flask(__name__) # Ya no necesitamos static_folder aquí si Gradio lo maneja, o lo manejamos con send_from_directory
 
 # Lee la API Key de GROQ desde una variable de entorno
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
@@ -48,15 +54,21 @@ REGLAS ESTRICTAS:
 5. Sé respetuoso y positivo en todo momento.
 """
 
-# Ruta para servir el index.html principal
-@app.route("/")
-def serve_index():
+# Rutas para servir archivos estáticos (frontend)
+@app.route('/')
+def home():
     return send_from_directory('.', 'index.html')
 
-# Ruta para servir archivos estáticos (CSS, JS, imágenes)
-@app.route("/assets/<path:path>")
-def serve_assets(path):
-    return send_from_directory('assets', path)
+@app.route('/<path:filename>')
+def serve_static(filename):
+    # Esto servirá index.html si se solicita la raíz, y otros archivos como assets
+    # Para la raíz, send_from_directory ya maneja index.html
+    # Para assets, necesitamos una ruta específica
+    if filename.startswith('assets/'):
+        return send_from_directory('.', filename) # Sirve desde la raíz
+
+    return send_from_directory('.', filename)
+
 
 @app.route("/chat", methods=["POST"])
 def chat():
@@ -105,12 +117,68 @@ def chat():
         app.logger.error(f"Error inesperado en el backend: {e}")
         return jsonify({"error": f"Error inesperado: {e}"}), 500
 
-# Esta parte es específica para Hugging Face Spaces
-# Hugging Face Spaces usa el puerto 7860 para Gradio/Streamlit por defecto
-# Para Flask, el puerto suele ser 5000, pero HF Spaces se encarga de la redirección
-# Lo importante es que el __name__ == "__main__" no se ejecute en el entorno de HF Spaces
-# ya que HF Spaces tiene su propio método de ejecución (gunicorn, uwsgi, etc.)
+# Función dummy para Gradio que sirve la aplicación Flask
+def run_flask_app():
+    # Gradio solo necesita una función que pueda llamar.
+    # Como nuestra app de Flask ya maneja las rutas y sirve el frontend,
+    # no necesitamos que Gradio haga mucho aquí, solo que "ejecute" algo.
+    # En un Space de Gradio, app.py se espera que defina una interfaz de Gradio.
+    # La forma de integrar Flask es montarla como una aplicación WSGI.
 
-# Por lo tanto, no necesitamos el if __name__ == "__main__": app.run(...)
-# en un entorno de Hugging Face Spaces con sdk:python o sdk:gradio
-# La plataforma se encargará de ejecutar la aplicación Flask.
+    # Sin embargo, para la mayoría de los casos en HF Spaces con sdk:gradio,
+    # simplemente servir el index.html desde Flask ya funciona.
+    # Para el caso en que Gradio necesite una UI, podemos hacer una dummy.
+    # Pero una forma más directa es simplemente ejecutar la app de Flask en el puerto
+    # que Gradio espera, y HF Spaces se encarga de servir el index.html.
+
+    # Descartamos la idea de montar Flask con Gradio directamente para simplificar.
+    # La clave es que el archivo app.py se "ejecuta" y la app de Flask se levanta.
+    # El sdk:gradio en el README.md parece que busca un archivo que lance Gradio.
+    # Si tenemos una app de Flask, la mejor forma es con Dockerfile.
+
+    # Si queremos mantener sdk:gradio y un app.py, entonces el app.py DEBE
+    # devolver una UI de Gradio. Y Gradio puede embeber otras apps.
+
+    # La solución más directa para que nuestro app.py de Flask funcione con sdk:gradio
+    # es que la aplicación de Flask se monte como un "componente" de Gradio.
+
+    # Reajustando para que Gradio lance la app de Flask.
+    # Flask es una aplicación WSGI. Gradio tiene un componente para ello.
+
+    with gr.Blocks() as demo:
+        gr.HTML(value="""
+            <h1 style="text-align: center; margin-top: 20px;">Cargando Taby Tutora...</h1>
+            <p style="text-align: center;">Si no ves el chatbot en unos segundos, puede haber un error en el backend.</p>
+        """)
+        # Para montar una app Flask en Gradio se necesita gr.mount_gradio_app
+        # Pero esto lo haríamos si Gradio fuera el frontend principal.
+        # En nuestro caso, queremos el HTML/JS como frontend.
+
+        # La solución de servir el index.html directamente desde Flask en la ruta "/"
+        # y con sdk:python es la más limpia.
+
+        # Volvemos a la idea de que Flask sirva el index.html.
+        # El error "This Space is missing an app file" sugiere que Gradio no vio su UI.
+
+        # Si el sdk es gradio, el app.py debe contener una interfaz de Gradio.
+        # Si queremos Flask, el sdk debe ser Dockerfile o Python y nuestro app.py ser el entrypoint.
+
+        # Revisado: el `sdk: gradio` espera que el `app.py` cree un `gr.Interface` o `gr.Blocks`
+        # y lo llame `.launch()`.
+
+        # Por lo tanto, necesitamos que este `app.py` sea una interfaz de Gradio
+        # y que esa interfaz de Gradio INCLUYA nuestro frontend HTML y nuestro backend API.
+
+        # Para servir un frontend HTML estático y un backend Flask en el mismo Space con sdk:gradio
+        # la forma más sencilla es usar gr.File para el frontend y gr.API para el backend.
+        # O, más directo, que Gradio se convierta en un proxy para nuestro Flask.
+
+        # Opción: Simplemente hacer una app.py de Gradio que muestre un iframe.
+        # Esto es lo que Hugging Face Spaces espera si el SDK es Gradio.
+
+        gr.HTML(value="""
+            <iframe src="/" style="width: 100%; height: 100vh; border: none;"></iframe>
+        """)
+        # La URL principal "/" será servida por nuestra aplicación Flask.
+        # Esto es un truco para que Gradio "contenga" nuestra app Flask/HTML.
+    demo.launch(server_name="0.0.0.0", server_port=int(os.environ.get("PORT", 7860)))
