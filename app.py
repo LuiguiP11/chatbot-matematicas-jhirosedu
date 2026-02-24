@@ -3,21 +3,19 @@ import requests
 import os
 import gradio as gr # ¡Nueva importación!
 
-# Ajusta el static_folder y static_url_path para que Flask sirva los archivos correctamente
-# dentro del entorno de Hugging Face Space si es necesario.
-# Por defecto, Hugging Face Spaces sirve los archivos estáticos desde la raíz
-# cuando el sdk es 'gradio' y 'output_dir' es '.'
+# Creamos la aplicación Flask
+# static_folder se establece en el directorio actual para servir archivos estáticos
+app = Flask(__name__)
 
-app = Flask(__name__) # Ya no necesitamos static_folder aquí si Gradio lo maneja, o lo manejamos con send_from_directory
-
-# Lee la API Key de GROQ desde una variable de entorno
+# Lee la API Key de GROQ desde una variable de entorno de Hugging Face
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
 
-# Modelo de GROQ (puedes cambiarlo si deseas otro de los disponibles en Groq)
-MODEL = "llama-3.3-70b-versatile" # O "llama-3.3-8b-8192" para una respuesta más rápida si es necesario
+# Modelo de GROQ
+# Recomendado: "llama-3.3-8b-8192" para velocidad
+MODEL = "llama-3.3-8b-8192"
 GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"
 
-# Contenido del CNB para el system prompt (extracto de ejemplo)
+# Contenido del CNB para el system prompt
 SYSTEM_PROMPT = """
 Eres "Taby Tutora de Matemática", un asistente educativo amigable, paciente y motivador para estudiantes de 1º, 2º y 3º básico del Instituto Experimental de Educación Básica con Orientación Ocupacional (Guatemala).
 
@@ -48,7 +46,7 @@ TEMAS QUE PUEDES RESPONDER según el CNB de Guatemala:
 
 REGLAS ESTRICTAS:
 1. Solo respondes preguntas de los temas matemáticos del CNB listados arriba. Si el tema no corresponde, informa amablemente que solo puedes ayudar con matemáticas de 1º a 3º básico.
-2. NUNCA des respuestas directas a tareas, ejercicios o exámenes. Guía al estudiante paso a paso con preguntas que le ayuden a descubrir la respuesta por sí mismo.
+2. NUNCA des respuestas directas a tareas, ejercicios o exámenes. Guía al estudiante paso a paso con preguntas que le ayuden a descubrir respuesta por sí mismo.
 3. Usa lenguaje sencillo, ejemplos cotidianos (si es posible con contexto guatemalteco) y un tono alentador.
 4. Mantén respuestas concisas (máximo 3-4 párrafos o pasos).
 5. Sé respetuoso y positivo en todo momento.
@@ -59,21 +57,15 @@ REGLAS ESTRICTAS:
 def home():
     return send_from_directory('.', 'index.html')
 
-@app.route('/<path:filename>')
-def serve_static(filename):
-    # Esto servirá index.html si se solicita la raíz, y otros archivos como assets
-    # Para la raíz, send_from_directory ya maneja index.html
-    # Para assets, necesitamos una ruta específica
-    if filename.startswith('assets/'):
-        return send_from_directory('.', filename) # Sirve desde la raíz
-
-    return send_from_directory('.', filename)
-
+@app.route('/assets/<path:path>')
+def serve_assets(path):
+    return send_from_directory('assets', path)
 
 @app.route("/chat", methods=["POST"])
 def chat():
+    # Aquí se reciben las solicitudes del frontend (index.html)
     if not GROQ_API_KEY:
-        return jsonify({"error": "GROQ_API_KEY no configurada en el servidor."}), 500
+        return jsonify({"error": "GROQ_API_KEY no configurada en el servidor. Contacta al administrador."}), 500
 
     user_message = request.json.get("message")
     conversation_history = request.json.get("history", [])
@@ -81,10 +73,12 @@ def chat():
     if not user_message:
         return jsonify({"error": "Mensaje de usuario vacío"}), 400
 
-    # Construir el historial para GROQ (OpenAI compatible)
+    # Construir el historial para GROQ (compatible con API de OpenAI)
     messages = [{"role": "system", "content": SYSTEM_PROMPT}]
+    # Agrega el historial previo
     for msg in conversation_history:
         messages.append({"role": msg["role"], "content": msg["content"]})
+    # Agrega el mensaje actual del usuario
     messages.append({"role": "user", "content": user_message})
 
     try:
@@ -99,9 +93,9 @@ def chat():
             "temperature": 0.7,
             "top_p": 0.9
         }
-        
+
         response = requests.post(GROQ_API_URL, headers=headers, json=payload)
-        response.raise_for_status()  # Lanza una excepción para errores HTTP
+        response.raise_for_status() 
 
         groq_data = response.json()
         bot_text = groq_data["choices"][0]["message"]["content"]
@@ -115,7 +109,7 @@ def chat():
         return jsonify({"error": f"Error en la respuesta de GROQ: {e}"}), 500
     except Exception as e:
         app.logger.error(f"Error inesperado en el backend: {e}")
-        return jsonify({"error": f"Error inesperado: {e}"}), 500
+        return jsonify({"error": f"Error inesperado en el servidor: {e}"}), 500
 
 
 # Función dummy para Gradio que sirve la aplicación Flask

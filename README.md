@@ -3,55 +3,44 @@ title: Taby Tutora de Matemática
 emoji: 📚
 colorFrom: green
 colorTo: blue
-sdk: python
-app_file: app.py
-# La sección "models" es para indicar qué modelos se usarán, pero no es estrictamente necesaria si se definen en el app.py
-# models:
-#   - mistralai/Mixtral-8x7B-Instruct-v0.1
-
-# Esto es para configurar que los archivos estáticos se sirvan desde la raíz,
-# y que cualquier ruta no encontrada se redirija a index.html (para SPAs o frontends)
-# build:
-#   python_version: 3.10
-#   install: pip install -r requirements.txt
-#   command: python app.py
-#
-# ports:
-#   - 7860 # Puerto por defecto de Gradio, pero si usamos Flask se puede cambiar a 5000 o el que use Flask.
-
-# Para Flask, el command generalmente es gunicorn o flask run
-# Dado que es Flask, y Hugging Face espera que la app se sirva en un puerto específico
-# y que el frontend esté en el mismo Space, la configuración más simple
-# es un Dockerfile, pero si queremos usar el sdk:python
-# necesitamos una forma de servir Flask y el static folder.
-
-# La forma más robusta y que sirve Python con frontend estático
-# es usando un Dockerfile. Sin embargo, si queremos mantenerlo simple con sdk:python,
-# necesitamos que el app.py sirva tanto la API como el index.html.
-
-# Dado que Hugging Face Spaces usa el `app.py` para la lógica del backend,
-# y queremos que sirva el `index.html` estático, la forma más sencilla es:
-# 1. Decirle que el SDK es Python.
-# 2. Asegurarnos de que el app.py sirva los archivos estáticos (index.html).
-#    Esto es algo que hay que añadir al app.py
-# 3. Y que el comando de ejecución sea el de Flask.
-
-# Para una app de Flask que sirve archivos estáticos junto con una API:
-# Necesitamos un Dockerfile o modificar el app.py para servir index.html
-# Ya que el sdk es Python, Hugging Face Spaces espera un app.py que se ejecute.
-# y si queremos servir archivos estáticos, el `app.py` debe manejarlo.
-
-# Revisado: la configuración ideal para que el app.py de Flask sirva los archivos estáticos
-# y la API en el mismo Space es cambiar la configuración del SDK y asegurar que Flask
-# sirva el index.html.
-
-# Para este caso, vamos a usar sdk: gradio porque es el más sencillo de configurar
-# para servir archivos estáticos (nuestro index.html) y a la vez tener un backend de Python.
-# Luego, nuestro app.py será el que se ejecute detrás.
 sdk: gradio
 app_file: app.py
-output_dir: .
 ---
 
 # chatbot-matematicas-jhirosedu
-Chatbot de Matemáticas para Jhiro's Edu, enfocado en el CNB
+Chatbot de Matemáticas para Jhiro's Edu, enfocado en el CNB de Guatemala.
+
+## Descripción
+Este proyecto es un chatbot de matemáticas diseñado para estudiantes de 1º, 2º y 3º básico del Instituto Experimental de Educación Básica con Orientación Ocupacional. 
+
+Utiliza la API de **GROQ** (con un backend seguro en Python/Flask) para proporcionar respuestas amigables y pedagógicas basadas en el **Currículo Nacional Base (CNB)** de Guatemala.
+
+## Características
+- **Taby Tutora de Matemática:** Un asistente de IA con personalidad amigable y motivadora.
+- **Base de conocimiento CNB:** Respuestas adaptadas a los temas del CNB de 1º a 3º básico.
+- **Interfaz Web (Frontend):** Desarrollada en HTML/CSS/JavaScript.
+- **Backend Seguro (Proxy):** Implementado con Flask en Python, para proteger la API Key de GROQ.
+- **Despliegue Gratuito:** Alojado en Hugging Face Spaces.
+
+## Arquitectura
+- **Frontend:** `index.html` (HTML, CSS, JavaScript)
+- **Backend:** `app.py` (Flask en Python)
+- **API de LLM:** GROQ (con modelos como `llama-3.3-70b-versatile`)
+- **Hosting:** Hugging Face Spaces
+- **Gestión de la API Key:** Protegida como secreto en Hugging Face Spaces.
+
+
+
+## Estado Actual (22 de febrero de 2026)
+- **Fracaso Inicial con LangChain/Colab:** Se experimentaron dificultades con la ejecución de prototipos en Google Colab debido a problemas de compatibilidad de versiones y limitaciones de rendimiento en CPU. Se generó frustración inicial, pero sirvió de aprendizaje.
+- **Transición a Estrategia Claude/GROQ:** Se adoptó una nueva estrategia más robusta y compatible con la gratuidad: usar la API de GROQ con un backend proxy en Hugging Face Spaces.
+- **Funcionalidad Local:** El chatbot funciona localmente con la API de GROQ.
+- **API Key Oculta:** La API Key de GROQ ya no está expuesta en el `index.html` del frontend.
+- **Despliegue HF Spaces Pendiente:** Se están realizando los ajustes finales para el despliegue correcto.
+- **Problema de Detección `app_file`:** Hugging Face Spaces no detectaba `app.py` como el archivo principal debido a una configuración de SDK incorrecta. 
+    - **Solución:** Se cambió el `sdk` a `gradio` y se ajustó `app.py` para servir la interfaz estática dentro del entorno.
+
+## Próximos Pasos (Pendientes)
+* Confirmar que `app.py`, `requirements.txt`, `index.html` y la carpeta `assets` estén correctamente subidos a la raíz del repositorio de GitHub.
+* Verificar que Hugging Face Spaces detecte los cambios y despliegue el chatbot correctamente.
+* Pruebas finales del chatbot desplegado en línea.
