@@ -117,68 +117,44 @@ def chat():
         app.logger.error(f"Error inesperado en el backend: {e}")
         return jsonify({"error": f"Error inesperado: {e}"}), 500
 
+
 # Función dummy para Gradio que sirve la aplicación Flask
-def run_flask_app():
-    # Gradio solo necesita una función que pueda llamar.
-    # Como nuestra app de Flask ya maneja las rutas y sirve el frontend,
-    # no necesitamos que Gradio haga mucho aquí, solo que "ejecute" algo.
-    # En un Space de Gradio, app.py se espera que defina una interfaz de Gradio.
-    # La forma de integrar Flask es montarla como una aplicación WSGI.
+# En Hugging Face Spaces con sdk:gradio, el app.py DEBE devolver una interfaz de Gradio.
+# La solución más sencilla para integrar nuestra app Flask es que Gradio la contenga en un iframe.
 
-    # Sin embargo, para la mayoría de los casos en HF Spaces con sdk:gradio,
-    # simplemente servir el index.html desde Flask ya funciona.
-    # Para el caso en que Gradio necesite una UI, podemos hacer una dummy.
-    # Pero una forma más directa es simplemente ejecutar la app de Flask en el puerto
-    # que Gradio espera, y HF Spaces se encarga de servir el index.html.
+import threading
+import time
 
-    # Descartamos la idea de montar Flask con Gradio directamente para simplificar.
-    # La clave es que el archivo app.py se "ejecuta" y la app de Flask se levanta.
-    # El sdk:gradio en el README.md parece que busca un archivo que lance Gradio.
-    # Si tenemos una app de Flask, la mejor forma es con Dockerfile.
+class FlaskThread(threading.Thread):
+    def __init__(self, app_instance):
+        super().__init__()
+        self.app = app_instance
 
-    # Si queremos mantener sdk:gradio y un app.py, entonces el app.py DEBE
-    # devolver una UI de Gradio. Y Gradio puede embeber otras apps.
+    def run(self):
+        # Iniciar la aplicación Flask en un puerto específico
+        # Usamos 7861 para evitar conflictos con el puerto por defecto de Gradio 7860
+        self.app.run(host="0.0.0.0", port=7861, debug=False)
 
-    # La solución más directa para que nuestro app.py de Flask funcione con sdk:gradio
-    # es que la aplicación de Flask se monte como un "componente" de Gradio.
+if __name__ == "__main__":
+    # Iniciar Flask en un hilo separado
+    flask_thread = FlaskThread(app)
+    flask_thread.start()
 
-    # Reajustando para que Gradio lance la app de Flask.
-    # Flask es una aplicación WSGI. Gradio tiene un componente para ello.
+    # Dar un pequeño tiempo para que Flask se inicie
+    time.sleep(2)
 
-    with gr.Blocks() as demo:
+    with gr.Blocks(title="Taby Tutora de Matemática - Instituto Experimental") as demo:
         gr.HTML(value="""
             <h1 style="text-align: center; margin-top: 20px;">Cargando Taby Tutora...</h1>
             <p style="text-align: center;">Si no ves el chatbot en unos segundos, puede haber un error en el backend.</p>
+            <iframe src="http://127.0.0.1:7861/" style="width: 100%; height: 80vh; border: none;"></iframe>
+            <p style="text-align: center; font-size: 0.8em; color: gray;">
+                El chatbot se carga dentro de un iframe. Si no funciona, verifica los logs.
+            </p>
         """)
-        # Para montar una app Flask en Gradio se necesita gr.mount_gradio_app
-        # Pero esto lo haríamos si Gradio fuera el frontend principal.
-        # En nuestro caso, queremos el HTML/JS como frontend.
+        # El iframe apunta al puerto donde Flask se está ejecutando.
+        # En Hugging Face Spaces, el localhost se mapea correctamente.
 
-        # La solución de servir el index.html directamente desde Flask en la ruta "/"
-        # y con sdk:python es la más limpia.
-
-        # Volvemos a la idea de que Flask sirva el index.html.
-        # El error "This Space is missing an app file" sugiere que Gradio no vio su UI.
-
-        # Si el sdk es gradio, el app.py debe contener una interfaz de Gradio.
-        # Si queremos Flask, el sdk debe ser Dockerfile o Python y nuestro app.py ser el entrypoint.
-
-        # Revisado: el `sdk: gradio` espera que el `app.py` cree un `gr.Interface` o `gr.Blocks`
-        # y lo llame `.launch()`.
-
-        # Por lo tanto, necesitamos que este `app.py` sea una interfaz de Gradio
-        # y que esa interfaz de Gradio INCLUYA nuestro frontend HTML y nuestro backend API.
-
-        # Para servir un frontend HTML estático y un backend Flask en el mismo Space con sdk:gradio
-        # la forma más sencilla es usar gr.File para el frontend y gr.API para el backend.
-        # O, más directo, que Gradio se convierta en un proxy para nuestro Flask.
-
-        # Opción: Simplemente hacer una app.py de Gradio que muestre un iframe.
-        # Esto es lo que Hugging Face Spaces espera si el SDK es Gradio.
-
-        gr.HTML(value="""
-            <iframe src="/" style="width: 100%; height: 100vh; border: none;"></iframe>
-        """)
-        # La URL principal "/" será servida por nuestra aplicación Flask.
-        # Esto es un truco para que Gradio "contenga" nuestra app Flask/HTML.
+    # Gradio lanzará la interfaz. Hugging Face Spaces usará el puerto 7860 por defecto.
     demo.launch(server_name="0.0.0.0", server_port=int(os.environ.get("PORT", 7860)))
+
