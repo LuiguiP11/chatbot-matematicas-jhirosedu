@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, render_template
+from flask import Flask, request, jsonify, send_from_directory
 import requests
 import os
 import PyPDF2
@@ -9,7 +9,6 @@ GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
 MODEL = "llama-3.3-70b-versatile"
 GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"
 
-# Cargar CNB al iniciar
 def cargar_cnb(ruta_pdf="cnb_matematicas.pdf"):
     texto = ""
     try:
@@ -56,7 +55,11 @@ def buscar_contexto_cnb(pregunta, max_chars=1500):
 
 @app.route("/")
 def home():
-    return render_template("index.html")
+    return send_from_directory('.', 'index.html', mimetype='text/html')
+
+@app.route("/<path:filename>")
+def serve_static(filename):
+    return send_from_directory('.', filename)
 
 @app.route("/chat", methods=["POST"])
 def chat():
