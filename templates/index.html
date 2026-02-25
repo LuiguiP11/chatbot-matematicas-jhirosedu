@@ -233,38 +233,159 @@
        ⚠️  IMPORTANTE: En producción mueve la API Key
        a un backend propio y nunca la expongas aquí.
     ────────────────────────────────────────────── */
-    // La API_KEY de GROQ ahora se manejará en el backend.
-    // El frontend se comunicará con el backend en el mismo dominio, en la ruta /chat.
     const API_URL = "/chat"; 
-    // const MODEL   = "llama-3.3-70b-versatile"; // El modelo se define en el backend.
-
     const MAX_HISTORY = 20; // mensajes en memoria (evita tokens infinitos)
 
-    /* ── System prompt / CNB ── */
-    const SYSTEM_PROMPT = `
-Eres "Taby Tutora de Matemática", un asistente educativo amigable, paciente y motivador para estudiantes de 1º, 2º y 3º básico del Instituto Experimental de Educación Básica con Orientación Ocupacional (Guatemala).
+    /* ── Estado ── */
+    const history = []; // {role, content}
 
-TEMAS QUE PUEDES RESPONDER según el CNB de Guatemala:
+    /* ── DOM ── */
+    const chatBox    = document.getElementById("chat-box");
+    const inputEl    = document.getElementById("user-input");
+    const sendBtn    = document.getElementById("send-button");
 
-1º Básico:
-• Números Naturales y Enteros (operaciones y propiedades).
-• Fracciones y Decimales.
-• Razones, Proporciones y Porcentajes.
-• Álgebra introductoria (expresiones y ecuaciones de primer grado).
-• Geometría (figuras planas, perímetro y área).
-• Estadística descriptiva (tablas, gráficas, medidas de tendencia central).
+    /* ── Helpers de seguridad ── */
+    // Escapa HTML para evitar XSS
+    function escapeHTML(str) {
+        return str
+            .replace(/&/g,  "&amp;")
+            .replace(/</g,  "&lt;")
+            .replace(/>/g,  "&gt;")
+            .replace(/"/g,  "&quot;")
+            .replace(/'/g,  "&#39;");
+    }
 
-2º Básico:
-• Números Reales (racionales e irracionales).
-• Álgebra (productos notables, factorización, ecuaciones lineales y cuadráticas).
-• Geometría (triángulos, polígonos, cuerpos geométricos, teorema de Pitágoras).
-• Funciones lineales y cuadráticas.
-• Estadística y Probabilidad.
+    // Convierte saltos de línea en <br> después de escapar
+    function safeText(str) {
+        return escapeHTML(str).replace(/\n/g, "<br>");
+    }
 
-3º Básico:
-• Números Complejos.
-• Álgebra avanzada (ecuaciones, desigualdades, sistemas de ecuaciones).
-• Funciones (lineales, cuadráticas, exponenciales, logarítmicas).
+    /* ── UI helpers ── */
+    function addBubble(text, sender, isError = false) {
+        const wrap = document.createElement("div");
+        wrap.className = `message ${sender}`;
+
+        const bubble = document.createElement("div");
+        bubble.className = "bubble" + (isError ? " error-msg" : "");
+        bubble.innerHTML = safeText(text);
+
+        wrap.appendChild(bubble);
+        chatBox.appendChild(wrap);
+        chatBox.scrollTop = chatBox.scrollHeight;
+    }
+
+    function showTyping() {
+        const wrap = document.createElement("div");
+        wrap.className = "message bot";
+        wrap.id = "typing-indicator";
+
+        const bubble = document.createElement("div");
+        bubble.className = "bubble";
+        bubble.innerHTML = `<div class="typing-dots">
+            <span></span><span></span><span></span>
+        </div>`;
+
+        wrap.appendChild(bubble);
+        chatBox.appendChild(wrap);
+        chatBox.scrollTop = chatBox.scrollHeight;
+    }
+
+    function removeTyping() {
+        const el = document.getElementById("typing-indicator");
+        if (el) el.remove();
+    }
+
+    function setLoading(isLoading) {
+        sendBtn.disabled  = isLoading;
+        inputEl.disabled  = isLoading;
+    }
+
+    /* ── Auto-resize textarea ── */
+    inputEl.addEventListener("input", () => {
+        inputEl.style.height = "auto";
+        inputEl.style.height = Math.min(inputEl.scrollHeight, 120) + "px";
+    });
+
+    /* ── Envío de mensaje ── */
+    async function sendMessage() {
+        const text = inputEl.value.trim();
+        if (!text) return;
+
+        addBubble(text, "user");
+        inputEl.value = "";
+        inputEl.style.height = "auto";
+
+        // Agrega al historial del frontend
+        history.push({ role: "user", content: text });
+
+        // Recorta historial para no exceder tokens
+        while (history.length > MAX_HISTORY) {
+            history.shift(); // Elimina el mensaje más antiguo
+        }
+
+        setLoading(true);
+        showTyping();
+
+        try {
+            const payload = {
+                message: text,
+                history: history // Envía el historial al backend
+            };
+
+            const res = await fetch(API_URL, {
+                method:  "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify(payload)
+            });
+
+            if (!res.ok) {
+                const errData = await res.json().catch(() => ({}));
+                throw new Error(errData?.error || `HTTP ${res.status}`);
+            }
+
+            const data = await res.json();
+            const botText = data?.response;
+            if (!botText) throw new Error("Respuesta vacía del modelo.");
+
+            history.push({ role: "assistant", content: botText });
+            while (history.length > MAX_HISTORY) {
+                history.shift(); // Elimina el mensaje más antiguo
+            }
+
+            removeTyping();
+            addBubble(botText, "bot");
+
+        } catch (err) {
+            console.error("[Taby Error]", err);
+            removeTyping();
+            addBubble(
+                "Lo siento, ocurrió un error al procesar tu pregunta. Por favor intenta de nuevo. 🙏\n(" + err.message + ")",
+                "bot",
+                true
+            );
+        } finally {
+            setLoading(false);
+            inputEl.focus();
+        }
+    }
+
+    /* ── Eventos ── */
+    sendBtn.addEventListener("click", sendMessage);
+    inputEl.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" && !e.shiftKey) {
+            e.preventDefault();
+            sendMessage();
+        }
+    });
+
+})();
+</script>
+
+</body>
+</html>
+eales, cuadráticas, exponenciales, logarítmicas).
 • Trigonometría (razones y funciones trigonométricas).
 • Geometría analítica.
 • Estadística inferencial.

@@ -1,154 +1,107 @@
-from flask import Flask, request, jsonify, send_from_directory
-import requests
+from flask import Flask, render_template, request, jsonify
+from groq import Groq
 import os
-import gradio as gr # ¡Nueva importación!
+import PyPDF2 # Nueva importación para leer PDFs
 
-# Creamos la aplicación Flask
-# static_folder se establece en el directorio actual para servir archivos estáticos
-app = Flask(__name__)
+app = Flask(__name__, template_folder='templates', static_folder='static')
 
-# Lee la API Key de GROQ desde una variable de entorno de Hugging Face
-GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
+client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
 
-# Modelo de GROQ
-# Recomendado: "llama-3.3-8b-8192" para velocidad
-MODEL = "llama-3.3-8b-8192"
-GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"
+# --- Parte de la integración del CNB (RAG simplificado) ---
+def cargar_cnb(ruta_pdf="cnb_matematicas.pdf"):
+    texto = ""
+    try:
+        with open(ruta_pdf, "rb") as f:
+            reader = PyPDF2.PdfReader(f)
+            for pagina in reader.pages:
+                texto += pagina.extract_text() + "\n"
+        print(f"CNB cargado exitosamente desde {ruta_pdf}")
+    except FileNotFoundError:
+        print(f"ERROR: Archivo CNB no encontrado en {ruta_pdf}")
+        texto = "CNB no disponible. Por favor, asegúrate de que el archivo 'cnb_matematicas.pdf' esté en el directorio raíz del proyecto."
+    except Exception as e:
+        print(f"ERROR al cargar el CNB: {e}")
+        texto = f"Error al cargar el CNB: {e}"
+    return texto
 
-# Contenido del CNB para el system prompt
-SYSTEM_PROMPT = """
-Eres "Taby Tutora de Matemática", un asistente educativo amigable, paciente y motivador para estudiantes de 1º, 2º y 3º básico del Instituto Experimental de Educación Básica con Orientación Ocupacional (Guatemala).
+# Cargar el CNB al iniciar la aplicación (una sola vez)
+CNB_TEXTO = cargar_cnb()
 
-TEMAS QUE PUEDES RESPONDER según el CNB de Guatemala:
+def buscar_contexto(pregunta, texto_cnb, max_chars=2000):
+    """Búsqueda simple: encuentra párrafos que contengan palabras clave"""
+    if texto_cnb.startswith("ERROR"): # Si el CNB no se pudo cargar
+        return texto_cnb # Devolvemos el mensaje de error
 
-1º Básico:
-• Números Naturales y Enteros (operaciones y propiedades).
-• Fracciones y Decimales.
-• Razones, Proporciones y Porcentajes.
-• Álgebra introductoria (expresiones y ecuaciones de primer grado).
-• Geometría (figuras planas, perímetro y área).
-• Estadística descriptiva (tablas, gráficas, medidas de tendencia central).
+    palabras = pregunta.lower().split()
+    parrafos = texto_cnb.split("\n\n")
+    
+    relevantes = []
+    for parrafo in parrafos:
+        score = sum(1 for p in palabras if p in parrafo.lower())
+        if score > 0:
+            relevantes.append((score, parrafo))
+    
+    relevantes.sort(reverse=True)
+    # Limita a los 3 párrafos más relevantes para no exceder el contexto
+    contexto = "\n\n".join([p for _, p in relevantes[:3]])
+    return contexto[:max_chars] # Asegura que no exceda el límite de caracteres
 
-2º Básico:
-• Números Reales (racionales e irracionales).
-• Álgebra (productos notables, factorización, ecuaciones lineales y cuadráticas).
-• Geometría (triángulos, polígonos, cuerpos geométricos, teorema de Pitágoras).
-• Funciones lineales y cuadráticas.
-• Estadística y Probabilidad.
+# --- Fin Parte de la integración del CNB ---
 
-3º Básico:
-• Números Complejos.
-• Álgebra avanzada (ecuaciones, desigualdades, sistemas de ecuaciones).
-• Funciones (lineales, cuadráticas, exponenciales, logarítmicas).
-• Trigonometría (razones y funciones trigonométricas).
-• Geometría analítica.
-• Estadística inferencial.
 
-REGLAS ESTRICTAS:
-1. Solo respondes preguntas de los temas matemáticos del CNB listados arriba. Si el tema no corresponde, informa amablemente que solo puedes ayudar con matemáticas de 1º a 3º básico.
-2. NUNCA des respuestas directas a tareas, ejercicios o exámenes. Guía al estudiante paso a paso con preguntas que le ayuden a descubrir respuesta por sí mismo.
-3. Usa lenguaje sencillo, ejemplos cotidianos (si es posible con contexto guatemalteco) y un tono alentador.
-4. Mantén respuestas concisas (máximo 3-4 párrafos o pasos).
-5. Sé respetuoso y positivo en todo momento.
-"""
-
-# Rutas para servir archivos estáticos (frontend)
-@app.route('/')
-def home():
-    return send_from_directory('.', 'index.html')
-
-@app.route('/assets/<path:path>')
-def serve_assets(path):
-    return send_from_directory('assets', path)
+@app.route("/")
+def index():
+    return render_template("index.html")
 
 @app.route("/chat", methods=["POST"])
 def chat():
-    # Aquí se reciben las solicitudes del frontend (index.html)
-    if not GROQ_API_KEY:
-        return jsonify({"error": "GROQ_API_KEY no configurada en el servidor. Contacta al administrador."}), 500
-
-    user_message = request.json.get("message")
-    conversation_history = request.json.get("history", [])
+    data = request.get_json()
+    user_message = data.get("message", "")
+    conversation_history = data.get("history", []) # Recuperar el historial de la conversación
+    #grado = data.get("grado", "1º básico")  # Se podría pasar desde el frontend si el usuario lo selecciona
 
     if not user_message:
         return jsonify({"error": "Mensaje de usuario vacío"}), 400
 
+    # Búsqueda de contexto relevante del CNB
+    contexto_cnb = buscar_contexto(user_message, CNB_TEXTO)
+
+    # Construir el SYSTEM_PROMPT dinámicamente con el contexto del CNB
+    system_prompt = f"""Eres Taby Tutora, tutora de matemáticas para estudiantes de básica en Guatemala.
+                
+CONTENIDO DEL CNB RELEVANTE:
+{contexto_cnb}
+
+Usa este contenido para guiar tus respuestas. Explica de forma simple y usa 
+ejemplos del contexto guatemalteco (quetzales, mercados, etc.).
+NUNCA des respuestas directas a tareas, ejercicios o exámenes; en cambio,
+guías al estudiante paso a paso para que él encuentre la respuesta.
+Sé respetuoso y positivo en todo momento.
+"""
+
     # Construir el historial para GROQ (compatible con API de OpenAI)
-    messages = [{"role": "system", "content": SYSTEM_PROMPT}]
-    # Agrega el historial previo
+    messages = [{"role": "system", "content": system_prompt}]
     for msg in conversation_history:
-        messages.append({"role": msg["role"], "content": msg["content"]})
-    # Agrega el mensaje actual del usuario
-    messages.append({"role": "user", "content": user_message})
+        # Asegurarse de que el historial solo contenga roles 'user' y 'assistant'
+        if msg["role"] in ["user", "assistant"]:
+            messages.append({"role": msg["role"], "content": msg["content"]})
+    messages.append({"role": "user", "content": user_message}) # Añadir el mensaje actual del usuario
 
     try:
-        headers = {
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {GROQ_API_KEY}"
-        }
-        payload = {
-            "model": MODEL,
-            "messages": messages,
-            "max_tokens": 512,
-            "temperature": 0.7,
-            "top_p": 0.9
-        }
-
-        response = requests.post(GROQ_API_URL, headers=headers, json=payload)
-        response.raise_for_status() 
-
-        groq_data = response.json()
-        bot_text = groq_data["choices"][0]["message"]["content"]
+        response = client.chat.completions.create(
+            model="llama-3.3-70b-versatile",  # El modelo de GROQ
+            messages=messages,
+            temperature=0.7,
+            max_tokens=1024
+        )
+        
+        bot_text = response.choices[0].message.content
         return jsonify({"response": bot_text})
 
-    except requests.exceptions.RequestException as e:
-        app.logger.error(f"Error de conexión con la API de GROQ: {e}")
-        return jsonify({"error": f"Error de conexión con GROQ: {e}"}), 500
-    except KeyError as e:
-        app.logger.error(f"Estructura de respuesta inesperada de GROQ: {e}")
-        return jsonify({"error": f"Error en la respuesta de GROQ: {e}"}), 500
     except Exception as e:
-        app.logger.error(f"Error inesperado en el backend: {e}")
-        return jsonify({"error": f"Error inesperado en el servidor: {e}"}), 500
-
-
-# Función dummy para Gradio que sirve la aplicación Flask
-# En Hugging Face Spaces con sdk:gradio, el app.py DEBE devolver una interfaz de Gradio.
-# La solución más sencilla para integrar nuestra app Flask es que Gradio la contenga en un iframe.
-
-import threading
-import time
-
-class FlaskThread(threading.Thread):
-    def __init__(self, app_instance):
-        super().__init__()
-        self.app = app_instance
-
-    def run(self):
-        # Iniciar la aplicación Flask en un puerto específico
-        # Usamos 7861 para evitar conflictos con el puerto por defecto de Gradio 7860
-        self.app.run(host="0.0.0.0", port=7861, debug=False)
+        app.logger.error(f"Error al procesar la solicitud del chat: {e}")
+        return jsonify({"error": f"Error al procesar la solicitud: {e}"}), 500
 
 if __name__ == "__main__":
-    # Iniciar Flask en un hilo separado
-    flask_thread = FlaskThread(app)
-    flask_thread.start()
-
-    # Dar un pequeño tiempo para que Flask se inicie
-    time.sleep(2)
-
-    with gr.Blocks(title="Taby Tutora de Matemática - Instituto Experimental") as demo:
-        gr.HTML(value="""
-            <h1 style="text-align: center; margin-top: 20px;">Cargando Taby Tutora...</h1>
-            <p style="text-align: center;">Si no ves el chatbot en unos segundos, puede haber un error en el backend.</p>
-            <iframe src="http://127.0.0.1:7861/" style="width: 100%; height: 80vh; border: none;"></iframe>
-            <p style="text-align: center; font-size: 0.8em; color: gray;">
-                El chatbot se carga dentro de un iframe. Si no funciona, verifica los logs.
-            </p>
-        """)
-        # El iframe apunta al puerto donde Flask se está ejecutando.
-        # En Hugging Face Spaces, el localhost se mapea correctamente.
-
-    # Gradio lanzará la interfaz. Hugging Face Spaces usará el puerto 7860 por defecto.
-    demo.launch(server_name="0.0.0.0", server_port=int(os.environ.get("PORT", 7860)))
-
+    # Puerto 7860 obligatorio para Hugging Face Spaces con Docker
+    app.run(host="0.0.0.0", port=7860, debug=False)

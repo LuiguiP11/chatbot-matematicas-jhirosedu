@@ -3,7 +3,7 @@ title: Taby Tutora de Matemática
 emoji: 📚
 colorFrom: green
 colorTo: blue
-sdk: gradio
+sdk: docker
 app_file: app.py
 ---
 
