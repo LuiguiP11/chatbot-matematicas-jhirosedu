@@ -5,6 +5,9 @@ import PyPDF2
 
 app = Flask(__name__)
 
+# Log de arranque para depuración
+print("--- TABY ULTRA UPGRADE 2026 INICIANDO ---")
+
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
 MODEL = "llama-3.3-70b-versatile"
 GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"
