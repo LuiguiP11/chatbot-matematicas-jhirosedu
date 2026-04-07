@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Taby Tutora de Matemática - Instituto Experimental</title>
+    <title>Taby Tutora de Matemática - Jhiro's Edu</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
     <style>
@@ -31,7 +31,6 @@
             color: var(--text);
         }
 
-        /* ── Container ── */
         .chat-container {
             width: min(480px, 100vw);
             height: min(820px, 100vh);
@@ -47,7 +46,6 @@
             .chat-container { border-radius: 0; }
         }
 
-        /* ── Header ── */
         header {
             background: linear-gradient(90deg, var(--primary), var(--secondary));
             color: var(--white);
@@ -71,7 +69,6 @@
         .header-info h1 { font-size: 1.1rem; font-weight: 700; line-height: 1.2; }
         .header-info p  { font-size: .72rem; opacity: .85; }
 
-        /* ── Chat area ── */
         .chat-box {
             flex: 1;
             overflow-y: auto;
@@ -83,11 +80,9 @@
             scroll-behavior: smooth;
         }
 
-        /* Scrollbar sutil */
         .chat-box::-webkit-scrollbar { width: 5px; }
         .chat-box::-webkit-scrollbar-thumb { background: rgba(0,0,0,.15); border-radius: 10px; }
 
-        /* ── Bubbles ── */
         .message { display: flex; max-width: 82%; }
         .message.user { align-self: flex-end; }
         .message.bot  { align-self: flex-start; }
@@ -111,7 +106,6 @@
             border-bottom-left-radius: 4px;
         }
 
-        /* Typing dots */
         .typing-dots {
             display: inline-flex;
             gap: 4px;
@@ -132,7 +126,6 @@
             40%            { transform: translateY(-6px); }
         }
 
-        /* ── Input ── */
         .input-area {
             display: flex;
             gap: 10px;
@@ -173,7 +166,6 @@
         #send-button:active:not(:disabled) { transform: scale(.96); }
         #send-button:disabled { opacity: .5; cursor: not-allowed; }
 
-        /* ── Footer ── */
         footer {
             background: linear-gradient(90deg, var(--primary), var(--secondary));
             color: var(--white);
@@ -183,7 +175,6 @@
             flex-shrink: 0;
         }
 
-        /* ── Error banner ── */
         .error-msg { color: #b00020; font-size: .85rem; font-style: italic; }
     </style>
 </head>
@@ -193,7 +184,7 @@
 
     <header>
         <div class="bot-avatar">
-            <img src="./assets/img/brazos_abiertos.png" alt="Taby Tutora">
+            <img src="/static/assets/img/brazos_abiertos.png" alt="Taby Tutora">
         </div>
         <div class="header-info">
             <h1>Taby Tutora de Matemática</h1>
@@ -228,24 +219,14 @@
 (function () {
     "use strict";
 
-    /* ──────────────────────────────────────────────
-       CONFIGURACIÓN
-       ⚠️  IMPORTANTE: En producción mueve la API Key
-       a un backend propio y nunca la expongas aquí.
-    ────────────────────────────────────────────── */
     const API_URL = "/chat"; 
-    const MAX_HISTORY = 20; // mensajes en memoria (evita tokens infinitos)
+    const MAX_HISTORY = 10; 
+    const history = []; 
 
-    /* ── Estado ── */
-    const history = []; // {role, content}
-
-    /* ── DOM ── */
     const chatBox    = document.getElementById("chat-box");
     const inputEl    = document.getElementById("user-input");
     const sendBtn    = document.getElementById("send-button");
 
-    /* ── Helpers de seguridad ── */
-    // Escapa HTML para evitar XSS
     function escapeHTML(str) {
         return str
             .replace(/&/g,  "&amp;")
@@ -255,12 +236,10 @@
             .replace(/'/g,  "&#39;");
     }
 
-    // Convierte saltos de línea en <br> después de escapar
     function safeText(str) {
         return escapeHTML(str).replace(/\n/g, "<br>");
     }
 
-    /* ── UI helpers ── */
     function addBubble(text, sender, isError = false) {
         const wrap = document.createElement("div");
         wrap.className = `message ${sender}`;
@@ -300,13 +279,11 @@
         inputEl.disabled  = isLoading;
     }
 
-    /* ── Auto-resize textarea ── */
     inputEl.addEventListener("input", () => {
         inputEl.style.height = "auto";
         inputEl.style.height = Math.min(inputEl.scrollHeight, 120) + "px";
     });
 
-    /* ── Envío de mensaje ── */
     async function sendMessage() {
         const text = inputEl.value.trim();
         if (!text) return;
@@ -315,29 +292,17 @@
         inputEl.value = "";
         inputEl.style.height = "auto";
 
-        // Agrega al historial del frontend
         history.push({ role: "user", content: text });
-
-        // Recorta historial para no exceder tokens
-        while (history.length > MAX_HISTORY) {
-            history.shift(); // Elimina el mensaje más antiguo
-        }
+        while (history.length > MAX_HISTORY) history.shift();
 
         setLoading(true);
         showTyping();
 
         try {
-            const payload = {
-                message: text,
-                history: history // Envía el historial al backend
-            };
-
             const res = await fetch(API_URL, {
                 method:  "POST",
-                headers: {
-                    "Content-Type": "application/json"
-                },
-                body: JSON.stringify(payload)
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ message: text, history: history })
             });
 
             if (!res.ok) {
@@ -350,9 +315,7 @@
             if (!botText) throw new Error("Respuesta vacía del modelo.");
 
             history.push({ role: "assistant", content: botText });
-            while (history.length > MAX_HISTORY) {
-                history.shift(); // Elimina el mensaje más antiguo
-            }
+            while (history.length > MAX_HISTORY) history.shift();
 
             removeTyping();
             addBubble(botText, "bot");
@@ -371,7 +334,6 @@
         }
     }
 
-    /* ── Eventos ── */
     sendBtn.addEventListener("click", sendMessage);
     inputEl.addEventListener("keydown", (e) => {
         if (e.key === "Enter" && !e.shiftKey) {
@@ -382,178 +344,5 @@
 
 })();
 </script>
-
-</body>
-</html>
-eales, cuadráticas, exponenciales, logarítmicas).
-• Trigonometría (razones y funciones trigonométricas).
-• Geometría analítica.
-• Estadística inferencial.
-
-REGLAS ESTRICTAS:
-1. Solo respondes preguntas de los temas matemáticos del CNB listados arriba. Si el tema no corresponde, informa amablemente que solo puedes ayudar con matemáticas de 1º a 3º básico.
-2. NUNCA des respuestas directas a tareas, ejercicios o exámenes. Guía al estudiante paso a paso con preguntas que le ayuden a descubrir la respuesta por sí mismo.
-3. Usa lenguaje sencillo, ejemplos cotidianos (si es posible con contexto guatemalteco) y un tono alentador.
-4. Mantén respuestas concisas (máximo 3-4 párrafos o pasos).
-5. Sé respetuoso y positivo en todo momento.
-`;
-
-    /* ── Estado ── */
-    const history = []; // {role, parts:[{text}]}
-
-    /* ── DOM ── */
-    const chatBox    = document.getElementById("chat-box");
-    const inputEl    = document.getElementById("user-input");
-    const sendBtn    = document.getElementById("send-button");
-
-    /* ── Helpers de seguridad ── */
-    // Escapa HTML para evitar XSS
-    function escapeHTML(str) {
-        return str
-            .replace(/&/g,  "&amp;")
-            .replace(/</g,  "&lt;")
-            .replace(/>/g,  "&gt;")
-            .replace(/"/g,  "&quot;")
-            .replace(/'/g,  "&#39;");
-    }
-
-    // Convierte saltos de línea en <br> después de escapar
-    function safeText(str) {
-        return escapeHTML(str).replace(/\n/g, "<br>");
-    }
-
-    /* ── UI helpers ── */
-    function addBubble(text, sender, isError = false) {
-        const wrap = document.createElement("div");
-        wrap.className = `message ${sender}`;
-
-        const bubble = document.createElement("div");
-        bubble.className = "bubble" + (isError ? " error-msg" : "");
-        bubble.innerHTML = safeText(text);
-
-        wrap.appendChild(bubble);
-        chatBox.appendChild(wrap);
-        chatBox.scrollTop = chatBox.scrollHeight;
-        return bubble;
-    }
-
-    function showTyping() {
-        const wrap = document.createElement("div");
-        wrap.className = "message bot";
-        wrap.id = "typing-indicator";
-
-        const bubble = document.createElement("div");
-        bubble.className = "bubble";
-        bubble.innerHTML = `<div class="typing-dots">
-            <span></span><span></span><span></span>
-        </div>`;
-
-        wrap.appendChild(bubble);
-        chatBox.appendChild(wrap);
-        chatBox.scrollTop = chatBox.scrollHeight;
-    }
-
-    function removeTyping() {
-        const el = document.getElementById("typing-indicator");
-        if (el) el.remove();
-    }
-
-    function setLoading(isLoading) {
-        sendBtn.disabled  = isLoading;
-        inputEl.disabled  = isLoading;
-    }
-
-    /* ── Auto-resize textarea ── */
-    inputEl.addEventListener("input", () => {
-        inputEl.style.height = "auto";
-        inputEl.style.height = Math.min(inputEl.scrollHeight, 120) + "px";
-    });
-
-    /* ── Envío de mensaje ── */
-    async function sendMessage() {
-        const text = inputEl.value.trim();
-        if (!text) return;
-
-        // Muestra burbuja del usuario
-        addBubble(text, "user");
-        inputEl.value = "";
-        inputEl.style.height = "auto";
-
-        // Agrega al historial
-        history.push({ role: "user", content: text });
-
-        // Recorta historial para no exceder tokens
-        if (history.length > MAX_HISTORY) {
-            history.splice(0, history.length - MAX_HISTORY);
-        }
-
-        setLoading(true);
-        showTyping();
-
-        try {
-            const payload = {
-                // MODEL se definirá en el backend
-                messages: [
-                    { role: "system", content: SYSTEM_PROMPT },
-                    ...history
-                ],
-                max_tokens: 512,
-                temperature: 0.7,
-                top_p: 0.9
-            };
-
-            const res = await fetch(API_URL, {
-                method:  "POST",
-                headers: {
-                    "Content-Type": "application/json"
-                    // La autorización con API_KEY ahora se maneja en el backend
-                },
-                body: JSON.stringify(payload)
-            });
-
-            if (!res.ok) {
-                const errData = await res.json().catch(() => ({}));
-                throw new Error(errData?.error?.message || `HTTP ${res.status}`);
-            }
-
-            const data = await res.json();
-
-            // La respuesta del backend proxy tendrá un formato diferente, espera { response: "..." }
-            const botText = data?.response;
-            if (!botText) throw new Error("Respuesta vacía del modelo.");
-
-            // Agrega respuesta al historial
-            history.push({ role: "assistant", content: botText });
-
-            removeTyping();
-            addBubble(botText, "bot");
-
-        } catch (err) {
-            console.error("[Taby Error]", err);
-            removeTyping();
-            addBubble(
-                "Lo siento, ocurrió un error al procesar tu pregunta. Por favor intenta de nuevo. 🙏\n(" + err.message + ")",
-                "bot",
-                true
-            );
-        } finally {
-            setLoading(false);
-            inputEl.focus();
-        }
-    }
-
-    /* ── Eventos ── */
-    sendBtn.addEventListener("click", sendMessage);
-    inputEl.addEventListener("keydown", (e) => {
-        // Enter envía; Shift+Enter hace salto de línea
-        if (e.key === "Enter" && !e.shiftKey) {
-            e.preventDefault();
-            sendMessage();
-        }
-    });
-
-})();
-</script>
-
 </body>
 </html>
