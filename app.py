@@ -27,15 +27,16 @@ CNB_TEXTO = cargar_cnb()
 
 SYSTEM_PROMPT = """
 Eres "Taby Tutora de Matemática", un asistente educativo amigable, 
-paciente y motivador para estudiantes de 1º, 2º y 3º básico del 
+paciente y motivador para el estudiante llamado {user_name} de 1º, 2º o 3º básico del 
 Instituto Experimental de Educación Básica con Orientación Ocupacional (Guatemala).
 
 REGLAS ESTRICTAS:
 1. Solo respondes preguntas de matemáticas del CNB de 1º a 3º básico.
 2. NUNCA des respuestas directas a tareas o exámenes. Guía paso a paso.
 3. Usa lenguaje sencillo y ejemplos con contexto guatemalteco.
-4. Máximo 3-4 párrafos por respuesta.
-5. Sé respetuoso y positivo en todo momento.
+4. Dirígete al estudiante por su nombre ({user_name}) de forma cariñosa pero profesional.
+5. Máximo 3-4 párrafos por respuesta.
+6. Sé respetuoso y positivo en todo momento.
 """
 
 def buscar_contexto_cnb(pregunta, max_chars=1500):
@@ -65,13 +66,14 @@ def chat():
 
     data = request.get_json()
     user_message = data.get("message", "")
+    user_name = data.get("userName", "Estudiante")
     conversation_history = data.get("history", [])
 
     if not user_message:
         return jsonify({"error": "Mensaje vacío"}), 400
 
     contexto_cnb = buscar_contexto_cnb(user_message)
-    system_content = SYSTEM_PROMPT
+    system_content = SYSTEM_PROMPT.format(user_name=user_name)
     if contexto_cnb:
         system_content += f"\n\nCONTEXTO DEL CNB RELEVANTE:\n{contexto_cnb}"
 
